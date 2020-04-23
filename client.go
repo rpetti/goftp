@@ -12,6 +12,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"golang.org/x/net/proxy"
 )
 
 // Error is an expanded error interface returned by all Client methods.
@@ -371,13 +373,14 @@ func (c *Client) openConn(idx int, host string) (pconn *persistentConn, err erro
 
 	if c.config.TLSConfig != nil && c.config.TLSMode == TLSImplicit {
 		pconn.debug("opening TLS control connection to %s", host)
-		dialer := &net.Dialer{
-			Timeout: c.config.Timeout,
+		dialer := proxy.FromEnvironment()
+		rawconn, err := dialer.Dial("tcp", host)
+		if err == nil {
+			conn = tls.Client(rawconn, pconn.config.TLSConfig)
 		}
-		conn, err = tls.DialWithDialer(dialer, "tcp", host, pconn.config.TLSConfig)
 	} else {
 		pconn.debug("opening control connection to %s", host)
-		conn, err = net.DialTimeout("tcp", host, c.config.Timeout)
+		conn, err = proxy.FromEnvironment().Dial("tcp", host)
 	}
 
 	var (
